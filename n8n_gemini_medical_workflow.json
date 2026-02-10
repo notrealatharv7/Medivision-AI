@@ -1,0 +1,108 @@
+{
+    "name": "Medical Report Analysis - Gemini Vision",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "ocr-process",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const binaryData = $input.item.binary.file || $input.item.binary.data;\n\nif (!binaryData) {\n  throw new Error('No file data found in webhook');\n}\n\nconst requestBody = {\n  contents: [{\n    parts: [\n      {\n        text: \"You are a medical data extraction assistant. Analyze this medical report image and extract: hemoglobin (in g/dL), blood_sugar (in mg/dL), cholesterol (in mg/dL). Return ONLY valid JSON with keys: hemoglobin, blood_sugar, cholesterol, summary. Use 'N/A' if value not found.\"\n      },\n      {\n        inline_data: {\n          mime_type: binaryData.mimeType,\n          data: binaryData.data\n        }\n      }\n    ]\n  }]\n};\n\nconst response = await fetch(\n  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAx0gT_S2AnNrb_fpSYR6E3AMqmTcNe2-o',\n  {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(requestBody)\n  }\n);\n\nconst result = await response.json();\n\nif (!response.ok) {\n  throw new Error(`Gemini API error: ${JSON.stringify(result)}`);\n}\n\nreturn [{ json: result }];"
+            },
+            "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "name": "Call Gemini Vision API",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const response = $input.item.json;\nconst text = response.candidates[0].content.parts[0].text;\n\nlet extracted = {\n  hemoglobin: 'N/A',\n  blood_sugar: 'N/A',\n  cholesterol: 'N/A',\n  summary: text\n};\n\ntry {\n  const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    extracted = {\n      hemoglobin: parsed.hemoglobin || 'N/A',\n      blood_sugar: parsed.blood_sugar || 'N/A',\n      cholesterol: parsed.cholesterol || 'N/A',\n      summary: parsed.summary || text\n    };\n  }\n} catch (e) {\n  console.log('Parse error:', e);\n}\n\nreturn [{ json: extracted }];"
+            },
+            "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            "name": "Parse Gemini Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ \n  {\n    \"status\": \"success\",\n    \"structured_data\": {\n      \"hemoglobin\": $json.hemoglobin,\n      \"blood_sugar\": $json.blood_sugar,\n      \"cholesterol\": $json.cholesterol\n    },\n    \"raw_text\": $json.summary\n  }\n}}",
+                "options": {}
+            },
+            "id": "d4e5f6a7-b8c9-0123-def0-234567890123",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                900,
+                300
+            ]
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Call Gemini Vision API",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Gemini Vision API": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini Response": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "versionId": "1",
+    "meta": {
+        "instanceId": "n8n-cloud-compatible"
+    },
+    "id": "medical-report-gemini-vision",
+    "tags": []
+}
