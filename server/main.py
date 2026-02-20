@@ -14,6 +14,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="MedVision AI API")
 
 # CORS setup
+origins = [
     "http://localhost:5173",
     "http://localhost:3000",
 ]
