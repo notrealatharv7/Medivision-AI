@@ -10,7 +10,9 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     // Configure axios base URL
-    axios.defaults.baseURL = '/api';
+    // Configure axios base URL
+    const API_URL = import.meta.env.VITE_API_URL || '/api';
+    axios.defaults.baseURL = API_URL;
 
     useEffect(() => {
         // Check if user is logged in (verify token)
