@@ -10,7 +10,7 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     // Configure axios base URL
-    axios.defaults.baseURL = 'http://localhost:8000';
+    axios.defaults.baseURL = '/api';
 
     useEffect(() => {
         // Check if user is logged in (verify token)
