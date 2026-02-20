@@ -47,7 +47,9 @@ export const AuthProvider = ({ children }) => {
             return { success: true };
         } catch (error) {
             let errorMessage = 'Login failed';
-            if (error.response?.data?.detail) {
+            if (!error.response) {
+                errorMessage = 'Unable to connect to server. Please ensure the backend is running.';
+            } else if (error.response?.data?.detail) {
                 const detail = error.response.data.detail;
                 errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
             }
@@ -62,7 +64,9 @@ export const AuthProvider = ({ children }) => {
             return await login(email, password);
         } catch (error) {
             let errorMessage = 'Signup failed';
-            if (error.response?.data?.detail) {
+            if (!error.response) {
+                errorMessage = 'Unable to connect to server. Please ensure the backend is running.';
+            } else if (error.response?.data?.detail) {
                 const detail = error.response.data.detail;
                 errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
             }
