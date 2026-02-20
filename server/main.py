@@ -126,27 +126,6 @@ def upload_report(
     db.refresh(new_report)
     return new_report
 
-@app.put("/users/profile", response_model=schemas.User)
-def update_profile(
-    user_update: schemas.UserUpdate,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
-):
-    if user_update.name is not None:
-        current_user.name = user_update.name
-    if user_update.age is not None:
-        current_user.age = user_update.age
-    if user_update.gender is not None:
-        current_user.gender = user_update.gender
-    if user_update.weight is not None:
-        current_user.weight = user_update.weight
-    if user_update.health_history is not None:
-        current_user.health_history = user_update.health_history
-    
-    db.commit()
-    db.refresh(current_user)
-    return current_user
-
 @app.post("/process-with-n8n", response_model=schemas.Report)
 def process_report_n8n(
     file: UploadFile = File(...),
@@ -177,44 +156,42 @@ def process_report_n8n(
                 "file": (file.filename, f, file.content_type)
             }
             data = {
-                "user_id": str(current_user.id),
-                "user_name": current_user.name,
-                "user_age": str(current_user.age or "N/A"),
-                "user_gender": current_user.gender or "N/A",
-                "user_weight": str(current_user.weight or "N/A"),
-                "user_history": current_user.health_history or "N/A"
+                "user_id": str(current_user.id)
             }
             # Note: Ensure your n8n webhook node is set to POST and 'Webhooks' trigger
             response = requests.post(N8N_WEBHOOK_URL, files=files, data=data, timeout=60)
 
         if response.status_code == 200:
-            try:
-                result = response.json()
-            except json.JSONDecodeError:
-                print(f"n8n Response is not JSON: {response.text}")
-                ai_explanation = f"Integration error: Invalid JSON response from n8n. Raw: {response.text[:100]}"
+            if not response.text.strip():
+                print("n8n returned an empty response.")
+                ai_explanation = "Integration error: n8n returned an empty response. This usually means the workflow failed to reach a response node."
                 extracted_data = "{}"
-                result = {} 
-
-            if result.get("status") == "success":
-                structured = result.get("structured_data", {})
-                extracted_data = json.dumps(structured)
-                raw_text = result.get("raw_text", "")
-                
-                # Extract recommendations from n8n
-                risks_list = result.get("risks", [])
-                diet_list = result.get("diet_plan", [])
-                exercise_list = result.get("exercise_plan", [])
-                
-                # Convert to JSON strings for database storage
-                risks = json.dumps(risks_list)
-                diet_plan = json.dumps(diet_list)
-                exercise_plan = json.dumps(exercise_list)
-                
-                # Use raw_text as AI explanation if available
-                ai_explanation = raw_text if raw_text else "Processed via n8n"
-            elif result:
-                ai_explanation = f"n8n logic error: {result.get('message', 'Unknown error')}"
+            else:
+                try:
+                    result = response.json()
+                    if result.get("status") == "success":
+                        structured = result.get("structured_data", {})
+                        extracted_data = json.dumps(structured)
+                        raw_text = result.get("raw_text", "")
+                        
+                        # Extract recommendations from n8n
+                        risks_list = result.get("risks", [])
+                        diet_list = result.get("diet_plan", [])
+                        exercise_list = result.get("exercise_plan", [])
+                        
+                        # Convert to JSON strings for database storage
+                        risks = json.dumps(risks_list)
+                        diet_plan = json.dumps(diet_list)
+                        exercise_plan = json.dumps(exercise_list)
+                        
+                        # Use raw_text as AI explanation if available
+                        ai_explanation = raw_text if raw_text else "Processed via n8n"
+                    elif result:
+                        ai_explanation = f"n8n logic error: {result.get('message', 'Unknown error')}"
+                except json.JSONDecodeError:
+                    print(f"n8n Response is not JSON: {response.text}")
+                    ai_explanation = f"Integration error: Invalid JSON response from n8n. Raw: {response.text[:100]}"
+                    extracted_data = "{}"
         else:
             ai_explanation = f"n8n connection failed: Status {response.status_code} - {response.text[:100]}"
 

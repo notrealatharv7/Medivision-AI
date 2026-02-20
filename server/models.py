@@ -10,10 +10,6 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    age = Column(Integer, nullable=True)
-    gender = Column(String, nullable=True)
-    weight = Column(Integer, nullable=True) # in kg
-    health_history = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     reports = relationship("Report", back_populates="owner")

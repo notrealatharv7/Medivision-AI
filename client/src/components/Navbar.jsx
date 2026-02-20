@@ -12,30 +12,34 @@ export default function Navbar() {
     };
 
     return (
-        <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <nav className="glass-card sticky top-0 z-50 border-b border-white/20 backdrop-blur-xl">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between h-16">
+                <div className="flex justify-between h-20 items-center">
                     <div className="flex items-center">
-                        <Link to="/" className="flex items-center space-x-2">
-                            <Activity className="h-8 w-8 text-primary" />
-                            <span className="text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-                                MedVision AI
+                        <Link to="/" className="flex items-center space-x-3 group">
+                            <div className="p-2 bg-blue-600 rounded-xl group-hover:scale-110 group-hover:rotate-6 transition-transform">
+                                <Activity className="h-6 w-6 text-white" />
+                            </div>
+                            <span className="text-2xl font-black bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent tracking-tighter">
+                                MedVision.AI
                             </span>
                         </Link>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-8">
                         {user ? (
                             <>
-                                <Link to="/dashboard" className="text-gray-700 hover:text-primary font-medium">Dashboard</Link>
-                                <Link to="/history" className="text-gray-700 hover:text-primary font-medium">History</Link>
-                                <div className="flex items-center space-x-2 pl-4 border-l border-gray-200">
-                                    <Link to="/profile" className="flex items-center space-x-1 text-sm text-gray-500 hover:text-primary transition-colors">
-                                        <UserIcon className="h-4 w-4" />
+                                <Link to="/dashboard" className="text-slate-600 hover:text-blue-600 font-bold text-sm tracking-wide transition-colors">DASHBOARD</Link>
+                                <Link to="/history" className="text-slate-600 hover:text-blue-600 font-bold text-sm tracking-wide transition-colors">HISTORY</Link>
+                                <div className="flex items-center space-x-4 pl-8 border-l border-slate-200">
+                                    <div className="flex items-center space-x-2 text-sm text-slate-500 font-medium">
+                                        <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                                            <UserIcon className="h-4 w-4 text-slate-400" />
+                                        </div>
                                         <span>{user.name}</span>
-                                    </Link>
+                                    </div>
                                     <button
                                         onClick={handleLogout}
-                                        className="p-2 rounded-full hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
+                                        className="p-2.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-all border border-transparent hover:border-rose-100"
                                         title="Logout"
                                     >
                                         <LogOut className="h-5 w-5" />
@@ -44,8 +48,10 @@ export default function Navbar() {
                             </>
                         ) : (
                             <>
-                                <Link to="/login" className="px-4 py-2 text-gray-700 hover:text-primary font-medium">Login</Link>
-                                <Link to="/signup" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors">Sign Up</Link>
+                                <Link to="/login" className="text-slate-600 hover:text-blue-600 font-bold text-sm tracking-wide transition-colors">LOGIN</Link>
+                                <Link to="/signup" className="px-6 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-sm tracking-wide transition-all shadow-lg shadow-slate-200 active:scale-95">
+                                    GET STARTED
+                                </Link>
                             </>
                         )}
                     </div>

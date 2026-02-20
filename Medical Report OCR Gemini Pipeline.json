@@ -26,169 +26,91 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        3100,
+        3000,
         -80
       ],
       "id": "fce66f08-c216-477a-98b4-6e8ee0a5d8f4"
     },
     {
       "parameters": {
-        "jsCode": "const binaryProperty = $input.item.binary.data ? 'data' : 'file';\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, binaryProperty);\n\nreturn [{\n  json: {\n    mimeType: $input.item.binary[binaryProperty].mimeType,\n    imageData: buffer.toString('base64')\n  }\n}];\n"
+        "jsCode": "const binaryProperty = $input.item.binary.data ? 'data' : 'file';\nconst buffer = await this.helpers.getBinaryDataBuffer(0, binaryProperty);\nreturn [{\n  json: {\n    mimeType: $input.item.binary[binaryProperty].mimeType,\n    imageData: buffer.toString('base64')\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2096,
+        2100,
         -80
       ],
       "id": "7c1c9527-cee1-471a-947b-8963b046f938",
-      "name": "prepare image"
+      "name": "prepare data"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=AIzaSyAx0gT_S2AnNrb_fpSYR6E3AMqmTcNe2-o",
+        "url": "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=AIzaSyCqNKHl6xdG98-Wm8RGUnOHMUUCCqWyJ30",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Analyze this medical report image for a patient named {{$node[\\\"Webhook\\\"].json[\\\"user_name\\\"]}}, aged {{$node[\\\"Webhook\\\"].json[\\\"user_age\\\"]}}, gender {{$node[\\\"Webhook\\\"].json[\\\"user_gender\\\"]}}, weighing {{$node[\\\"Webhook\\\"].json[\\\"user_weight\\\"]}}kg, with a health history of: {{$node[\\\"Webhook\\\"].json[\\\"user_history\\\"]}}. Extract: hemoglobin (value in g/dL), blood_sugar (value in mg/dL), cholesterol (value in mg/dL). Also provide a detailed 3-4 sentence summary explaining the key findings and their medical significance SPECIFIC TO THIS PATIENT'S CONTEXT. Return ONLY valid JSON with keys: hemoglobin, blood_sugar, cholesterol, summary. Use simple string values (e.g. '12.5 g/dL' or 'N/A').\"\n        },\n        {\n          \"inline_data\": {\n            \"mime_type\": \"{{$json.mimeType}}\",\n            \"data\": \"{{$json.imageData}}\"\n          }\n        }\n      ]\n    }\n  ]\n}\n",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Analyze this medical report image. \\n\\nTask: \\n1. Extract: hemoglobin (value in g/dL), blood_sugar (value in mg/dL), cholesterol (value in mg/dL).\\n2. Summary: Provide a detailed 3-4 sentence interpretation explaining the key findings and their medical significance. \\n3. RISKS: Provide 3-5 specific health risks based on these values. \\n4. DIET: Provide 5-7 detailed diet recommendations. \\n5. EXERCISE: Provide 5-7 detailed exercise recommendations.\\n\\nReturn ONLY valid JSON with these EXACT keys: hemoglobin, blood_sugar, cholesterol, summary, risks (array), diet_plan (array), exercise_plan (array). Use simple string values for hemoglobin, blood_sugar, and cholesterol (e.g. '12.5 g/dL' or 'N/A').\"\n        },\n        {\n          \"inline_data\": {\n            \"mime_type\": \"{{$json.mimeType}}\",\n            \"data\": \"{{$json.imageData}}\"\n          }\n        }\n      ]\n    }\n  ]\n}\n",
         "options": {}
       },
+      "name": "Gemini Unified Analysis",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "typeVersion": 4.1,
       "position": [
-        2288,
+        2400,
         -80
       ],
-      "id": "b511f699-1b17-4f4e-ae5b-dd56e464b954",
-      "name": "Extract Medical Data"
+      "id": "b511f699-1b17-4f4e-ae5b-dd56e464b954"
     },
     {
       "parameters": {
-        "jsCode": "const text = $json.candidates[0].content.parts[0].text;\n\n// Remove markdown code fences if present\nlet cleanText = text.replace(/```json\\s*/g, '').replace(/```\\s*/g, '').trim();\n\ntry {\n  return [{ json: JSON.parse(cleanText) }];\n} catch (e) {\n  console.log('Parse error:', e);\n  return [{ json: { hemoglobin: 'N/A', blood_sugar: 'N/A', cholesterol: 'N/A', summary: text } }];\n}\n"
+        "jsCode": "const text = $json.candidates[0].content.parts[0].text;\nlet cleanText = text.replace(/```json\\s*/g, '').replace(/```\\s*/g, '').trim();\n\ntry {\n  const result = JSON.parse(cleanText);\n  return [{\n    json: {\n      status: \"success\",\n      structured_data: {\n        hemoglobin: result.hemoglobin || 'N/A',\n        blood_sugar: result.blood_sugar || 'N/A',\n        cholesterol: result.cholesterol || 'N/A'\n      },\n      raw_text: result.summary || 'No summary available',\n      risks: result.risks || [],\n      diet_plan: result.diet_plan || [],\n      exercise_plan: result.exercise_plan || []\n    }\n  }];\n} catch (e) {\n  return [{\n    json: {\n      status: \"error\",\n      raw_text: \"Failed to parse AI response\",\n      structured_data: { hemoglobin: 'N/A', blood_sugar: 'N/A', cholesterol: 'N/A' },\n      risks: [],\n      diet_plan: [],\n      exercise_plan: []\n    }\n  }];\n}"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2480,
-        -80
-      ],
-      "id": "819aff52-e7b3-47b6-af39-4f080039395a",
-      "name": "parse medical data"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=AIzaSyAx0gT_S2AnNrb_fpSYR6E3AMqmTcNe2-o",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Based on these medical values: Hemoglobin: {{$json.hemoglobin}}, Blood Sugar: {{$json.blood_sugar}}, Cholesterol: {{$json.cholesterol}}. Generate:\\n\\n1. RISKS: List 3-5 specific health risks based on these values (e.g., 'Low hemoglobin may indicate anemia or iron deficiency')\\n2. DIET: Provide 5-7 detailed, actionable diet recommendations with specific foods (e.g., 'Consume iron-rich foods like spinach, lentils, and lean red meat daily')\\n3. EXERCISE: Provide 5-7 detailed, specific exercise recommendations with duration and frequency (e.g., 'Brisk walking for 30 minutes, 5 days per week')\\n\\nReturn ONLY valid JSON with keys: risks (array of strings), diet_plan (array of strings), exercise_plan (array of strings). Be specific and actionable.\"\n        }\n      ]\n    }\n  ]\n}\n",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
-      "position": [
-        2680,
-        -80
-      ],
-      "id": "c1d2e3f4-a5b6-7890-cdef-1234567890ab",
-      "name": "Generate Recommendations"
-    },
-    {
-      "parameters": {
-        "jsCode": "const text = $json.candidates[0].content.parts[0].text;\n\n// Remove markdown code fences if present\nlet cleanText = text.replace(/```json\\s*/g, '').replace(/```\\s*/g, '').trim();\n\ntry {\n  return [{ json: JSON.parse(cleanText) }];\n} catch (e) {\n  console.log('Parse error:', e);\n  return [{ json: { risks: [], diet_plan: [], exercise_plan: [] } }];\n}\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2880,
-        -80
-      ],
-      "id": "d2e3f4a5-b6c7-8901-def0-234567890bcd",
-      "name": "parse recommendations"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Get medical data from the parsing branch\nconst medicalData = $(\"parse medical data\").first().json;\n\n// Get recommendations from current branch\nconst recommendations = $json;\n\nreturn [{\n  json: {\n    status: \"success\",\n    structured_data: {\n      hemoglobin: medicalData.hemoglobin || 'N/A',\n      blood_sugar: medicalData.blood_sugar || 'N/A',\n      cholesterol: medicalData.cholesterol || 'N/A'\n    },\n    raw_text: medicalData.summary || 'No summary available',\n    risks: recommendations.risks || [],\n    diet_plan: recommendations.diet_plan || [],\n    exercise_plan: recommendations.exercise_plan || []\n  }\n}];\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2980,
+        2700,
         -80
       ],
       "id": "e3f4a5b6-c7d8-9012-ef01-34567890cdef",
-      "name": "merge all data"
+      "name": "Parse Response"
     }
   ],
-  "pinData": {},
   "connections": {
     "Webhook": {
       "main": [
         [
           {
-            "node": "prepare image",
+            "node": "prepare data",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "prepare image": {
+    "prepare data": {
       "main": [
         [
           {
-            "node": "Extract Medical Data",
+            "node": "Gemini Unified Analysis",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract Medical Data": {
+    "Gemini Unified Analysis": {
       "main": [
         [
           {
-            "node": "parse medical data",
+            "node": "Parse Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "parse medical data": {
-      "main": [
-        [
-          {
-            "node": "Generate Recommendations",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Generate Recommendations": {
-      "main": [
-        [
-          {
-            "node": "parse recommendations",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "parse recommendations": {
-      "main": [
-        [
-          {
-            "node": "merge all data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "merge all data": {
+    "Parse Response": {
       "main": [
         [
           {
@@ -202,15 +124,6 @@
   },
   "active": true,
   "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": false
-  },
-  "versionId": "953d1166-a5cf-49eb-9119-d2daefc34913",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "21feee5abb28bdcc8c2c384d56e04ce861d2771665bc7032d72cfd8e15b2f1f9"
-  },
-  "id": "HDjKzdtXvGnX1KLBpIEqZ",
-  "tags": []
+    "executionOrder": "v1"
+  }
 }

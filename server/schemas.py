@@ -15,21 +15,10 @@ class UserLogin(BaseModel):
 
 class User(UserBase):
     id: int
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    weight: Optional[int] = None
-    health_history: Optional[str] = None
     created_at: datetime
     
     class Config:
         from_attributes = True
-
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    weight: Optional[int] = None
-    health_history: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str

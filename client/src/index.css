@@ -1,10 +1,36 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 @theme {
-  --color-primary: #2563EB;
-  --color-secondary: #1E40AF;
+  --font-sans: 'Outfit', sans-serif;
+  --color-primary: #3B82F6;
+  --color-primary-dark: #1D4ED8;
+  --color-glass-bg: rgba(255, 255, 255, 0.7);
+  --color-glass-border: rgba(255, 255, 255, 0.2);
 }
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  @apply text-slate-900 font-sans antialiased;
+}
+
+.glass-card {
+  @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-xl;
+}
+
+.glass-card-dark {
+  @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 shadow-2xl;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 10px -5px #3B82F6;
+  }
+
+  to {
+    box-shadow: 0 0 25px 2px #3B82F6;
+  }
 }
