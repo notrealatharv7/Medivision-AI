@@ -17,10 +17,11 @@ app = FastAPI(title="MedVision AI API")
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://medivision-ai-ten.vercel.app",  # Production frontend
 ]
 
 frontend_url = os.getenv("FRONTEND_URL")
-if frontend_url:
+if frontend_url and frontend_url not in origins:
     origins.append(frontend_url)
 
 print(f"Allowed Origins: {origins}")
@@ -74,13 +75,9 @@ def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
 
 # --- Reports ---
-# Placeholder for Colab URL - in prod, store in env or db
-# COLAB_API_URL = os.getenv("COLAB_API_URL", "https://unsportful-joyously-charise.ngrok-free.dev")
-# Placeholder for Colab URL - in prod, store in env or db
-# COLAB_API_URL = os.getenv("COLAB_API_URL", "https://unsportful-joyously-charise.ngrok-free.dev")
-COLAB_API_URL = "https://unsportful-joyously-charise.ngrok-free.dev"
-# Placeholder for n8n Webhook URL
+# n8n Webhook URL — handles OCR and AI analysis via Google Gemini Vision
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "https://n8n-tj96.onrender.com/webhook/ocr-process")
+
 
 @app.post("/reports/upload", response_model=schemas.Report)
 def upload_report(
@@ -88,67 +85,9 @@ def upload_report(
     current_user: models.User = Depends(auth.get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Save file locally
-    upload_dir = "uploads"
-    os.makedirs(upload_dir, exist_ok=True)
-    file_location = f"{upload_dir}/{file.filename}"
-    with open(file_location, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
-    # Send to Colab for Analysis
-    try:
-        # Re-open file to send
-        with open(file_location, "rb") as f:
-            files = {"file": (file.filename, f, file.content_type)}
-            headers = {"ngrok-skip-browser-warning": "true"}
-            response = requests.post(f"https://unsportful-joyously-charise.ngrok-free.dev/analyze-report", files=files, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            analysis_result = response.json()
-            extracted_data = json.dumps(analysis_result.get("extracted_data", {}))
-            ai_explanation = analysis_result.get("explanation", "")
-            risks = json.dumps(analysis_result.get("risks", []))
-            diet_plan = json.dumps(analysis_result.get("diet", []))
-            exercise_plan = json.dumps(analysis_result.get("exercise", []))
-        else:
-            # Fallback/Error handling
-            extracted_data = "{}"
-            ai_explanation = "Analysis failed or service unavailable."
-            risks = "[]"
-            diet_plan = "[]"
-            exercise_plan = "[]"
-
-    except Exception as e:
-        print(f"Error connecting to ML service: {e}")
-        extracted_data = "{}"
-        ai_explanation = "ML Service unreachable."
-        risks = "[]"
-        diet_plan = "[]"
-        exercise_plan = "[]"
-
-    # Create Report Entry
-    new_report = models.Report(
-        user_id=current_user.id,
-        filename=file.filename,
-        extracted_data=extracted_data,
-        ai_explanation=ai_explanation,
-        risks=risks,
-        diet_plan=diet_plan,
-        exercise_plan=exercise_plan
-    )
-    db.add(new_report)
-    db.commit()
-    db.refresh(new_report)
-    return new_report
-
-@app.post("/process-with-n8n", response_model=schemas.Report)
-def process_report_n8n(
-    file: UploadFile = File(...),
-    current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
-):
     """
-    Process report using n8n workflow for OCR and structured data extraction.
+    Upload a medical report. Forwards to n8n which runs OCR and AI analysis
+    via Google Gemini Vision, then returns structured health data.
     """
     # 1. Save file locally
     upload_dir = "uploads"
