@@ -15,21 +15,30 @@ def _init_firebase():
     if _firebase_initialized or firebase_admin._apps:
         return
     
-    service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
-    if service_account_json:
-        # Render: store the full JSON as an env var
-        service_account_info = json.loads(service_account_json)
-        cred = credentials.Certificate(service_account_info)
-    else:
-        # Local dev: point to the downloaded JSON file
-        service_account_path = os.getenv(
-            "FIREBASE_SERVICE_ACCOUNT_PATH",
-            "server/firebase-service-account.json"
-        )
-        cred = credentials.Certificate(service_account_path)
-    
-    firebase_admin.initialize_app(cred)
-    _firebase_initialized = True
+    try:
+        service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+        if service_account_json:
+            # Render: store the full JSON as an env var
+            service_account_info = json.loads(service_account_json)
+            cred = credentials.Certificate(service_account_info)
+        else:
+            # Local dev: point to the downloaded JSON file
+            service_account_path = os.getenv(
+                "FIREBASE_SERVICE_ACCOUNT_PATH",
+                "server/firebase-service-account.json"
+            )
+            if not os.path.exists(service_account_path):
+                print(f"ERROR: Firebase Service Account file not found at {service_account_path}")
+                print("If you are on Render, please set the FIREBASE_SERVICE_ACCOUNT environment variable.")
+                return
+
+            cred = credentials.Certificate(service_account_path)
+        
+        firebase_admin.initialize_app(cred)
+        _firebase_initialized = True
+        print("Firebase Admin SDK initialized successfully.")
+    except Exception as e:
+        print(f"FAILED to initialize Firebase Admin SDK: {e}")
 
 _init_firebase()
 
