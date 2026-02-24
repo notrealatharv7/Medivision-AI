@@ -1,59 +1,90 @@
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import firebase_admin
+from firebase_admin import credentials, auth as firebase_auth
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from . import schemas, database, models
+from . import database, models
 import os
-from dotenv import load_dotenv
+import json
 
-load_dotenv()
+# ── Firebase Admin SDK init ─────────────────────────────────────
+_firebase_initialized = False
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-dev")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
-def _truncate_password(password: str) -> str:
-    """Truncate password to 72 bytes (bcrypt limit) safely."""
-    encoded = password.encode("utf-8")
-    return encoded[:72].decode("utf-8", errors="ignore")
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(_truncate_password(plain_password), hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(_truncate_password(password))
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+def _init_firebase():
+    global _firebase_initialized
+    if _firebase_initialized or firebase_admin._apps:
+        return
+    
+    service_account_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+    if service_account_json:
+        # Render: store the full JSON as an env var
+        service_account_info = json.loads(service_account_json)
+        cred = credentials.Certificate(service_account_info)
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+        # Local dev: point to the downloaded JSON file
+        service_account_path = os.getenv(
+            "FIREBASE_SERVICE_ACCOUNT_PATH",
+            "server/firebase-service-account.json"
+        )
+        cred = credentials.Certificate(service_account_path)
+    
+    firebase_admin.initialize_app(cred)
+    _firebase_initialized = True
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+_init_firebase()
+
+# ── Token verification ──────────────────────────────────────────
+security = HTTPBearer()
+
+def verify_firebase_token(id_token: str) -> dict:
+    """Verify a Firebase ID token and return its decoded claims."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
-        token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    user = db.query(models.User).filter(models.User.email == token_data.email).first()
-    if user is None:
-        raise credentials_exception
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        return decoded_token
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid Firebase token: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(database.get_db)
+) -> models.User:
+    """
+    Dependency: verifies Firebase ID token from Authorization header,
+    then looks up (or creates) the user in our DB.
+    """
+    id_token = credentials.credentials
+    decoded = verify_firebase_token(id_token)
+
+    email = decoded.get("email")
+    name = decoded.get("name", email)
+    firebase_uid = decoded.get("uid")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Firebase token missing email claim")
+
+    user = db.query(models.User).filter(models.User.firebase_uid == firebase_uid).first()
+    if not user:
+        # Try by email as fallback
+        user = db.query(models.User).filter(models.User.email == email).first()
+    
+    if not user:
+        # First-time login: create the user
+        user = models.User(
+            email=email,
+            name=name or email,
+            firebase_uid=firebase_uid,
+            hashed_password=None,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif not user.firebase_uid:
+        # Existing email/password user — link their Firebase UID
+        user.firebase_uid = firebase_uid
+        db.commit()
+
     return user

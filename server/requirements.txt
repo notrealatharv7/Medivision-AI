@@ -7,3 +7,4 @@ python-multipart
 python-jose[cryptography]
 requests
 python-dotenv
+firebase-admin

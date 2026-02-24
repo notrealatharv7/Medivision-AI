@@ -38,37 +38,45 @@ app.add_middleware(
 get_db = database.get_db
 
 # --- Authentication ---
-@app.post("/auth/signup", response_model=schemas.Token)
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@app.post("/auth/firebase", response_model=schemas.User)
+def firebase_auth_endpoint(
+    req: schemas.FirebaseTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Verifies Firebase ID token and returns the user.
+    If the user doesn't exist, they are created automatically.
+    """
     try:
-        db_user = db.query(models.User).filter(models.User.email == user.email).first()
-        if db_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-        hashed_password = auth.get_password_hash(user.password)
-        new_user = models.User(email=user.email, name=user.name, hashed_password=hashed_password)
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        access_token = auth.create_access_token(data={"sub": new_user.email})
-        return {"access_token": access_token, "token_type": "bearer"}
-    except Exception as e:
-        print(f"Signup Error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        # We manually verify here because this is the 'login' step
+        decoded = auth.verify_firebase_token(req.id_token)
+        email = decoded.get("email")
+        name = decoded.get("name", email)
+        firebase_uid = decoded.get("uid")
 
-@app.post("/auth/login", response_model=schemas.Token)
-def login(form_data: schemas.UserLogin, db: Session = Depends(get_db)):
-    # Note: reusing UserCreate for simplicity, though OAuth2PasswordRequestForm is standard
-    user = db.query(models.User).filter(models.User.email == form_data.email).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    access_token = auth.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+        user = db.query(models.User).filter(models.User.firebase_uid == firebase_uid).first()
+        if not user:
+            user = db.query(models.User).filter(models.User.email == email).first()
+        
+        if not user:
+            user = models.User(
+                email=email,
+                name=name or email,
+                firebase_uid=firebase_uid,
+                hashed_password=None
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif not user.firebase_uid:
+            user.firebase_uid = firebase_uid
+            db.commit()
+            db.refresh(user)
+            
+        return user
+    except Exception as e:
+        print(f"Firebase Auth Error: {e}")
+        raise HTTPException(status_code=401, detail=str(e))
 
 @app.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(auth.get_current_user)):

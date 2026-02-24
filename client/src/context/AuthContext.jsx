@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { auth, googleProvider } from '../firebase';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import axios from 'axios';
 
 const AuthContext = createContext();
@@ -9,85 +11,71 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Configure axios base URL
-    // Configure axios base URL
     const API_URL = import.meta.env.VITE_API_URL || '/api';
     axios.defaults.baseURL = API_URL;
 
     useEffect(() => {
-        // Check if user is logged in (verify token)
-        const checkUser = async () => {
-            const token = localStorage.getItem('token');
-            if (token) {
+        // Listen to Firebase auth state changes
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
                 try {
-                    // Add token to headers
-                    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-                    // Ideally call /users/me here to validate and get user details
-                    const res = await axios.get('/users/me');
+                    // Get a fresh ID token
+                    const idToken = await firebaseUser.getIdToken();
+                    axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`;
+
+                    // Exchange Firebase token for user profile from our backend
+                    const res = await axios.post('/auth/firebase', { id_token: idToken });
                     setUser(res.data);
                 } catch (error) {
-                    console.error("Auth check failed", error);
-                    localStorage.removeItem('token');
+                    console.error('Auth state check failed:', error);
+                    setUser(null);
                     delete axios.defaults.headers.common['Authorization'];
                 }
+            } else {
+                setUser(null);
+                delete axios.defaults.headers.common['Authorization'];
             }
             setLoading(false);
-        };
-        checkUser();
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const login = async (email, password) => {
+    const signInWithGoogle = async () => {
         try {
-            const res = await axios.post('/auth/login', { email, password });
-            const { access_token } = res.data;
-            localStorage.setItem('token', access_token);
-            axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+            const result = await signInWithPopup(auth, googleProvider);
+            const idToken = await result.user.getIdToken();
+            axios.defaults.headers.common['Authorization'] = `Bearer ${idToken}`;
 
-            // Fetch user data
-            const userRes = await axios.get('/users/me');
-            setUser(userRes.data);
+            // Register/login user in our backend
+            const res = await axios.post('/auth/firebase', { id_token: idToken });
+            setUser(res.data);
             return { success: true };
         } catch (error) {
-            let errorMessage = 'Login failed';
-            if (!error.response) {
-                errorMessage = 'Unable to connect to server. Please ensure the backend is running.';
+            console.error('Google Sign-In error:', error);
+            let errorMessage = 'Google Sign-In failed. Please try again.';
+            if (error.code === 'auth/popup-closed-by-user') {
+                errorMessage = 'Sign-in popup was closed. Please try again.';
+            } else if (error.code === 'auth/popup-blocked') {
+                errorMessage = 'Popup was blocked by the browser. Please allow popups for this site.';
             } else if (error.response?.data?.detail) {
-                const detail = error.response.data.detail;
-                errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
+                errorMessage = error.response.data.detail;
             }
             return { success: false, error: errorMessage };
         }
     };
 
-    const signup = async (name, email, password) => {
-        try {
-            await axios.post('/auth/signup', { name, email, password });
-            // Auto login after signup
-            return await login(email, password);
-        } catch (error) {
-            let errorMessage = 'Signup failed';
-            if (!error.response) {
-                errorMessage = 'Unable to connect to server. Please ensure the backend is running.';
-            } else if (error.response?.data?.detail) {
-                const detail = error.response.data.detail;
-                errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail);
-            }
-            return { success: false, error: errorMessage };
-        }
-    };
-
-    const logout = () => {
-        localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
+    const logout = async () => {
+        await signOut(auth);
         setUser(null);
+        delete axios.defaults.headers.common['Authorization'];
     };
 
     const value = {
         user,
-        login,
-        signup,
+        signInWithGoogle,
         logout,
-        loading
+        loading,
     };
 
     return (

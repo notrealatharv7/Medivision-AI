@@ -13,6 +13,9 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
+class FirebaseTokenRequest(BaseModel):
+    id_token: str
+
 class User(UserBase):
     id: int
     created_at: datetime
