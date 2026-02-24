@@ -131,11 +131,9 @@ export default function Dashboard() {
         formData.append('file', file);
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post('/process-with-n8n', formData, {
+            const res = await axios.post('/reports/upload', formData, {
                 headers: {
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'multipart/form-data'
                 }
             });
             setReport(res.data);
