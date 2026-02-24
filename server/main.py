@@ -8,6 +8,9 @@ import requests
 import json
 from . import models, schemas, database, auth
 from .database import engine
+from dotenv import load_dotenv
+
+load_dotenv()
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -121,6 +124,7 @@ def upload_report(
                 "user_id": str(current_user.id)
             }
             # Note: Ensure your n8n webhook node is set to POST and 'Webhooks' trigger
+            print(f"Calling n8n Webhook: {N8N_WEBHOOK_URL}")
             response = requests.post(N8N_WEBHOOK_URL, files=files, data=data, timeout=60)
 
         if response.status_code == 200:
