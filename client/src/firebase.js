@@ -10,6 +10,21 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+// Defensive check to avoid crashing the app if env vars are missing
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error("Firebase configuration is missing! Make sure to set VITE_FIREBASE_* environment variables in your deployment dashboard.");
+}
+
+let app;
+let auth;
+let googleProvider;
+
+try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+} catch (error) {
+    console.error("Failed to initialize Firebase:", error);
+}
+
+export { auth, googleProvider };

@@ -15,6 +15,12 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.baseURL = API_URL;
 
     useEffect(() => {
+        if (!auth) {
+            console.error("Firebase Auth is not initialized. Registration and login will not work.");
+            setLoading(false);
+            return;
+        }
+
         // Listen to Firebase auth state changes
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
@@ -42,6 +48,9 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const signInWithGoogle = async () => {
+        if (!auth || !googleProvider) {
+            return { success: false, error: "Authentication system is not configured. Please check your environment variables." };
+        }
         try {
             const result = await signInWithPopup(auth, googleProvider);
             const idToken = await result.user.getIdToken();
