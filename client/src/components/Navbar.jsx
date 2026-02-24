@@ -47,7 +47,7 @@ export default function Navbar() {
                                 </div>
                             </>
                         ) : (
-                            <Link to="/login" className="px-6 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-sm tracking-wide transition-all shadow-lg shadow-slate-200 active:scale-95">
+                            <Link to="/signup" className="px-6 py-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-bold text-sm tracking-wide transition-all shadow-lg shadow-slate-200 active:scale-95">
                                 GET STARTED
                             </Link>
                         )}
